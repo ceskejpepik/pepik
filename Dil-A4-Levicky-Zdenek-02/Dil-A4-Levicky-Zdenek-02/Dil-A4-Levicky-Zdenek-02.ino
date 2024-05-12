@@ -1,0 +1,115 @@
+//#include <stdio.h>
+//#include <conio.h>
+//#include <dos.h>
+
+// deklarace promennych pro porty
+int vystupniPort = 0x00FE;
+int vstupniPort = 0;
+
+// funkce pro nastaveni jednoho bitu na dane pozici
+int nastavBit(int hodnota, int poradi) {
+    int maska = 1;
+    maska = maska << poradi;
+    hodnota |= maska;
+    return hodnota;
+}
+
+// funkce pro vynulovani jednoho bitu na dane pozici
+int vynulujBit(int hodnota, int poradi) {
+    int maska = 1;
+    maska = maska << poradi;
+    hodnota &= ~(maska);
+    return hodnota;
+}
+
+// funkce pro cteni senzoru
+int prectiJedenIR(int poradi) {
+    vstupniPort = inportb(0x301);
+    if (poradi == 1) vstupniPort = vstupniPort & (0x01); // zavora otaceni zakladny
+    if (poradi == 2) vstupniPort = vstupniPort & (0x02); // zavora hlavniho ramene
+    if (poradi == 3) vstupniPort = vstupniPort & (0x04); // zavora ramene chapadla
+    if (poradi == 4) vstupniPort = vstupniPort & (0x08); // zavora chapadla
+    return (vstupniPort == 0) ? 0 : 1;
+}
+
+// funkce pro provedeni kroku motorem
+void provedKrok(int pocet) {
+    int i = 0;
+    for (i = 0; i < pocet; i++) {
+        vystupniPort = nastavBit(vystupniPort, 0);    // nahozeni krokovaciho bitu (jeden krok motoru)
+        outportb(0x301, vystupniPort);                // vyvedeni hodnoty na port
+        delay(5);                                   
+        vystupniPort = vynulujBit(vystupniPort, 0);   // shozeni krokovaciho bitu
+        outportb(0x301, vystupniPort);                // vyvedeni hodnoty na port
+        delay(5);                                   
+    }
+}
+
+// funkce pro nastaveni motoru
+void nastavMotor(int motor, int smer) {
+    vystupniPort = nastavBit(vystupniPort, 5); // ctvrty motor vypnout
+    vystupniPort = nastavBit(vystupniPort, 4); // treti motor vypnout
+    vystupniPort = nastavBit(vystupniPort, 3); // druhy motor vypnout
+    vystupniPort = nastavBit(vystupniPort, 2); // prvni motor vypnout
+    vystupniPort = vynulujBit(vystupniPort, 1 + motor); // poradi motoru plus 1 dava pozici bitu v radovem slove
+    if (smer == 1) vystupniPort = nastavBit(vystupniPort, 1);
+    else vystupniPort = vynulujBit(vystupniPort, 1);
+    outportb(0x301, vystupniPort);
+}
+
+int main(void) {
+    char klavesa;
+    do {
+        klavesa = getch();
+        if (klavesa == '1') { // rameno chapadla smer nahoru
+            nastavMotor(3, 1);
+            provedKrok(2);
+        }
+        if (klavesa == '2') { // pokladani hlavniho ramene dolu
+            nastavMotor(2, 1);
+            provedKrok(2);
+        }
+        if (klavesa == '3') { // rameno chapadla smer dolu
+            if (prectiJedenIR(3) == 1) {
+                nastavMotor(3, 0);
+                provedKrok(2);
+            } else {
+                printf("Aktivni zavora ramene chapadla\r\n");
+            }
+        }
+        if (klavesa == '4') { // otoceni zakladny doleva
+            if (prectiJedenIR(1) == 1) {
+                nastavMotor(1, 0);
+                provedKrok(2);
+            } else {
+                printf("Aktivni zavora otaceni zakladny");
+            }
+        }
+
+        if (klavesa == '6') { // otoceni zakladny doprava
+            nastavMotor(1, 1);
+            provedKrok(2);
+        }
+        if (klavesa == '7') { // otevirani chapadla
+            if (prectiJedenIR(4) == 1) {
+                nastavMotor(4, 0);
+                provedKrok(2);
+            } else {
+                printf("Aktivni zavora chapadla\r\n");
+            }
+        }
+        if (klavesa == '8') { // zvedani hlavniho ramene nahoru
+            if (prectiJedenIR(2) == 1) {
+                nastavMotor(2, 0);
+                provedKrok(2);
+            } else {
+                printf("Aktivni zavora hlavniho ramene\r\n");
+            }
+        }
+        if (klavesa == '9') { // zavirani chapadla
+            nastavMotor(4, 1);
+            provedKrok(2);
+        }
+     
+    } while (klavesa != 'k'); // stisk k = konec programu
+}
